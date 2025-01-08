@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management Software</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .task-container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .table th, .table td {
+            vertical-align: middle;
+        }
+        .priority-high {
+            color: red;
+            font-weight: bold;
+        }
+        .priority-medium {
+            color: orange;
+            font-weight: bold;
+        }
+        .priority-low {
+            color: green;
+            font-weight: bold;
+        }
+        .edit-form {
+            display: none;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            width: 90%;
+            max-width: 400px;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div class="task-container">
+        <h2 class="text-center mb-4">Task Management Software</h2>
+
+        <!-- Add Task Form -->
+        <form id="taskForm" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <input type="text" id="taskName" class="form-control" placeholder="Task Name" required>
+            </div>
+            <div class="col-md-2">
+                <input type="text" id="assignedWith" class="form-control" placeholder="Assigned With" required>
+            </div>
+            <div class="col-md-2">
+                <select id="status" class="form-select">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select id="priority" class="form-select">
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" id="dueDate" class="form-control" required>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100">Add</button>
+            </div>
+        </form>
+
+        <!-- Task Table -->
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Done</th>
+                    <th>Task Name</th>
+                    <th>Assigned With</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Due</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="taskTableBody">
+                <!-- Tasks will appear here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Edit Task Form -->
+    <div class="overlay" id="overlay"></div>
+    <div class="edit-form" id="editForm">
+        <h5 class="mb-3">Edit Task</h5>
+        <form id="editTaskForm">
+            <div class="mb-3">
+                <input type="text" id="editTaskName" class="form-control" placeholder="Task Name" required>
+            </div>
+            <div class="mb-3">
+                <input type="text" id="editAssignedWith" class="form-control" placeholder="Assigned With" required>
+            </div>
+            <div class="mb-3">
+                <select id="editStatus" class="form-select">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <select id="editPriority" class="form-select">
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <input type="date" id="editDueDate" class="form-control" required>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-success" onclick="saveEdit()">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditForm()">Back</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const taskForm = document.getElementById('taskForm');
+        const taskTableBody = document.getElementById('taskTableBody');
+        const editForm = document.getElementById('editForm');
+        const overlay = document.getElementById('overlay');
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        let currentEditIndex = null;
+
+        // Function to render tasks
+        function renderTasks() {
+            taskTableBody.innerHTML = '';
+            tasks.forEach((task, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleDone(${index})"></td>
+                    <td>${task.name}</td>
+                    <td>${task.assignedWith}</td>
+                    <td>${task.status}</td>
+                    <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
+                    <td>${task.dueDate}</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" onclick="openEditForm(${index})">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTask(${index})">Delete</button>
+                    </td>
+                `;
+                taskTableBody.appendChild(row);
+            });
+            saveTasks();
+        }
+
+        // Save tasks to localStorage
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        // Add a new task
+        taskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newTask = {
+                name: document.getElementById('taskName').value,
+                assignedWith: document.getElementById('assignedWith').value,
+                status: document.getElementById('status').value,
+                priority: document.getElementById('priority').value,
+                dueDate: document.getElementById('dueDate').value,
+                done: false
+            };
+            tasks.push(newTask);
+            playSound('add');
+            renderTasks();
+            taskForm.reset();
+        });
+
+        // Toggle task done status
+        function toggleDone(index) {
+            tasks[index].done = !tasks[index].done;
+            playSound('toggle');
+            renderTasks();
+        }
+
+        // Open edit form
+        function openEditForm(index) {
+            const task = tasks[index];
+            currentEditIndex = index;
+            document.getElementById('editTaskName').value = task.name;
+            document.getElementById('editAssignedWith').value = task.assignedWith;
+            document.getElementById('editStatus').value = task.status;
+            document.getElementById('editPriority').value = task.priority;
+            document.getElementById('editDueDate').value = task.dueDate;
+            editForm.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+
+        // Close edit form
+        function closeEditForm() {
+            editForm.style.display = 'none';
+            overlay.style.display = 'none';
+        }
+
+        // Save edits
+        function saveEdit() {
+            if (currentEditIndex !== null) {
+                tasks[currentEditIndex] = {
+                    name: document.getElementById('editTaskName').value,
+                    assignedWith: document.getElementById('editAssignedWith').value,
+                    status: document.getElementById('editStatus').value,
+                    priority: document.getElementById('editPriority').value,
+                    dueDate: document.getElementById('editDueDate').value,
+                    done: tasks[currentEditIndex].done
+                };
+                playSound('save');
+                renderTasks();
+                closeEditForm();
+            }
+        }
+
+        // Delete a task
+        function deleteTask(index) {
+            tasks.splice(index, 1);
+            playSound('delete');
+            renderTasks();
+        }
+
+        // Play sound effect
+        function playSound(action) {
+            const audio = new Audio(`sounds/${action}.mp3`);
+            audio.play();
+        }
+
+        // Initial rendering of tasks
+        renderTasks();
+    </script>
+</body>
+</html>
